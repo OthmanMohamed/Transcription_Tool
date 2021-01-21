@@ -12,6 +12,11 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import QIcon
 from PyQt5 import QtMultimedia
 import glob
+from editor import editor_window
+
+class Second(QtWidgets.QMainWindow):
+    def __init__(self, parent=None):
+        super(Second, self).__init__(parent)
 
 class audio_player(QtMultimedia.QMediaPlayer):
     def __init__(self):
@@ -107,10 +112,11 @@ class data_holder(object):
         self.pushButton_2.setObjectName("pushButton_2")
         self.gridLayout_4.addWidget(self.pushButton_2, 1, 2, 1, 1)
         self.lineEdit = QtWidgets.QLineEdit(self.frame_4)
+
+        self.lineEdit.setObjectName("lineEdit")
         font = QtGui.QFont()
         font.setPointSize(14)
         self.lineEdit.setFont(font)
-        self.lineEdit.setObjectName("lineEdit")
         self.lineEdit.setReadOnly(True)
         self.gridLayout_4.addWidget(self.lineEdit, 0, 0, 1, 3)
         self.radioButton = QtWidgets.QRadioButton(self.frame_4)
@@ -122,6 +128,7 @@ class data_holder(object):
         self.radioButton.setObjectName("radioButton")
         self.radioButton.clicked.connect(self.allow_edit_text)
         self.gridLayout_4.addWidget(self.radioButton, 1, 0, 1, 1)
+
         self.pushButton = QtWidgets.QPushButton(self.frame_4)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed)
         sizePolicy.setHorizontalStretch(40)
@@ -129,6 +136,10 @@ class data_holder(object):
         sizePolicy.setHeightForWidth(self.pushButton.sizePolicy().hasHeightForWidth())
         self.pushButton.setSizePolicy(sizePolicy)
         self.pushButton.setObjectName("pushButton")
+        self.pushButton.clicked.connect(self.open_editor)
+
+        self.dialog = editor_window()
+
         self.gridLayout_4.addWidget(self.pushButton, 1, 1, 1, 1)
         self.horizontalLayout.addWidget(self.frame_4)
         self.frame_5 = QtWidgets.QFrame(self.frame_3)
@@ -147,10 +158,20 @@ class data_holder(object):
         self.label.setObjectName("label")
         self.gridLayout_5.addWidget(self.label, 0, 0, 1, 1)
         self.horizontalLayout.addWidget(self.frame_5)
-        self.spacerItem = QtWidgets.QSpacerItem(20, 20, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        self.spacerItem = QtWidgets.QSpacerItem(30, 20, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
 
         player.positionChanged.connect(self.changeLabel)
         self.retranslateUi()
+
+    def open_editor(self):
+        self.dialog.setupUi(self.text)
+        self.parent_object.setEnabled(False)
+        self.dialog.show()
+        print(self.dialog.quit)
+        self.dialog.quit.triggered.connect(self.close_editor)
+
+    def close_editor(self):
+        self.parent_object.setEnabled(True)
 
     def allow_edit_text(self):
         if self.radioButton.isChecked():
@@ -227,10 +248,10 @@ class Ui_MainWindow(object):
             file = open(p, "r")
             text = file.read()
             url = self.wav_paths[i]
-            url = url.split("/")
-            print(url)
+            url_split = url.split("/")
+            print(url_split)
             dataholder_name = "dataholder" + str(i)
-            exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, url, dataholder_name, url[-1])")
+            exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, url, dataholder_name, url_split[-1])")
             exec("self.verticalLayout.addWidget(self." + dataholder_name + ".frame_3)")
             exec("self.verticalLayout.addItem(self." + dataholder_name + ".spacerItem)")
 
