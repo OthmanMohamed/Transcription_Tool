@@ -30,10 +30,11 @@ class audio_player(QtMultimedia.QMediaPlayer):
         self.setMedia(self.content)
 
 class data_holder(object):
-    def __init__(self, parent_object, text, url, dataholder_name, file_name):
+    def __init__(self, parent_object, text, wav_url, text_url, dataholder_name, file_name):
         self.text = text
         self.parent_object = parent_object
-        self.url = url
+        self.wav_url = wav_url
+        self.txt_url = text_url
         self.dataholder_name = dataholder_name
         self.file_name = file_name
         self.audio_position = 0
@@ -65,10 +66,6 @@ class data_holder(object):
         self.frame_2.setObjectName("frame_2")
         self.gridLayout_3 = QtWidgets.QGridLayout(self.frame_2)
         self.gridLayout_3.setObjectName("gridLayout_3")
-        # self.progressBar = QtWidgets.QProgressBar(self.frame_2)
-        # self.progressBar.setProperty("value", 24)
-        # self.progressBar.setFormat("")
-        # self.progressBar.setObjectName("progressBar")
         self.progressBar = QtWidgets.QSlider(QtCore.Qt.Horizontal, self.frame_2)
         self.gridLayout_3.addWidget(self.progressBar, 0, 0, 1, 3)
         self.toolButton = QtWidgets.QToolButton(self.frame_2)
@@ -110,6 +107,7 @@ class data_holder(object):
         sizePolicy.setHeightForWidth(self.pushButton_2.sizePolicy().hasHeightForWidth())
         self.pushButton_2.setSizePolicy(sizePolicy)
         self.pushButton_2.setObjectName("pushButton_2")
+        self.pushButton_2.clicked.connect((lambda: self.save_text("lineEdit")))
         self.gridLayout_4.addWidget(self.pushButton_2, 1, 2, 1, 1)
         self.lineEdit = QtWidgets.QLineEdit(self.frame_4)
 
@@ -160,15 +158,20 @@ class data_holder(object):
         self.horizontalLayout.addWidget(self.frame_5)
         self.spacerItem = QtWidgets.QSpacerItem(30, 20, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
 
-        player.positionChanged.connect(self.changeLabel)
+        player.positionChanged.connect(lambda: self.changeLabel(self.progressBar))
         self.retranslateUi()
 
     def open_editor(self):
         self.dialog.setupUi(self.text)
+        self.dialog.saveButton.clicked.connect(lambda: self.save_text("dialog"))
+        player.change_media(self.wav_url, self.dataholder_name)
         self.parent_object.setEnabled(False)
         self.dialog.show()
-        print(self.dialog.quit)
-        self.dialog.quit.triggered.connect(self.close_editor)
+        self.dialog.quit.connect(self.close_editor)
+        self.dialog.playButton.clicked.connect(self.play)
+        self.dialog.pauseButton.clicked.connect(self.pause)
+        self.dialog.stopButton.clicked.connect(self.stop)
+        player.positionChanged.connect(lambda: self.changeLabel(self.dialog.horizontalSlider))
 
     def close_editor(self):
         self.parent_object.setEnabled(True)
@@ -180,6 +183,17 @@ class data_holder(object):
         else:
             self.lineEdit.setReadOnly(True)
 
+    def save_text(self, src):
+        print("done")
+        file = open(self.txt_url, 'w')
+        if src == "lineEdit":
+            text = self.lineEdit.text()
+        elif src == "dialog":
+            text = self.dialog.plainTextEdit.toPlainText()
+            self.lineEdit.setText(text)
+        file.write(text)
+        file.close()
+
     def retranslateUi(self):
         _translate = QtCore.QCoreApplication.translate
         self.pushButton_2.setText(_translate("MainWindow", "Save"))
@@ -188,17 +202,17 @@ class data_holder(object):
         self.label.setText(_translate("MainWindow", self.file_name))
         self.lineEdit.setText(self.text)
 
-    def changeLabel(self):
+    def changeLabel(self, currentProgressBar):
         if self.dataholder_name == player.currentDataHolder:
             if player.duration() == 0:
                 progress_value = 0
             else:
                 progress_value = int((player.position() / player.duration()) * 100)
-            self.progressBar.setSliderPosition(progress_value)
+            currentProgressBar.setSliderPosition(progress_value)
             print(progress_value)
 
     def play(self):
-        player.change_media(self.url, self.dataholder_name)
+        player.change_media(self.wav_url, self.dataholder_name)
         player.setPosition(self.audio_position)
         player.play()
         self.update_media_status()
@@ -244,14 +258,25 @@ class Ui_MainWindow(object):
         content = QtMultimedia.QMediaContent(QtCore.QUrl.fromLocalFile(self.wav_paths[0]))
         player.setMedia(content)
 
-        for i, p in enumerate(self.text_paths):
-            file = open(p, "r")
+        # for j in range (100):
+        #     for i, text_url in enumerate(self.text_paths):
+        #         file = open(text_url, "r")
+        #         text = file.read()
+        #         # print(text)
+        #         wav_url = self.wav_paths[i]
+        #         url_split = wav_url.split("/")
+        #         dataholder_name = "dataholder" + str(i + j*10)
+        #         exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, wav_url, text_url, dataholder_name, url_split[-1])")
+        #         exec("self.verticalLayout.addWidget(self." + dataholder_name + ".frame_3)")
+        #         exec("self.verticalLayout.addItem(self." + dataholder_name + ".spacerItem)")
+        for i, text_url in enumerate(self.text_paths):
+            file = open(text_url, "r")
             text = file.read()
-            url = self.wav_paths[i]
-            url_split = url.split("/")
-            print(url_split)
+            # print(text)
+            wav_url = self.wav_paths[i]
+            url_split = wav_url.split("/")
             dataholder_name = "dataholder" + str(i)
-            exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, url, dataholder_name, url_split[-1])")
+            exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, wav_url, text_url, dataholder_name, url_split[-1])")
             exec("self.verticalLayout.addWidget(self." + dataholder_name + ".frame_3)")
             exec("self.verticalLayout.addItem(self." + dataholder_name + ".spacerItem)")
 
