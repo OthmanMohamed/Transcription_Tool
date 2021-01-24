@@ -13,10 +13,9 @@ from PyQt5.QtGui import QIcon
 from PyQt5 import QtMultimedia
 import glob
 from editor import editor_window
+import datetime
+from librosa import get_duration as LibrosaDuration
 
-class Second(QtWidgets.QMainWindow):
-    def __init__(self, parent=None):
-        super(Second, self).__init__(parent)
 
 class audio_player(QtMultimedia.QMediaPlayer):
     def __init__(self):
@@ -86,6 +85,14 @@ class data_holder(object):
         self.toolButton_2.setObjectName("toolButton_2")
         self.toolButton_2.clicked.connect(self.stop)
         self.gridLayout_3.addWidget(self.toolButton_2, 1, 2, 1, 1)
+        self.label_2 = QtWidgets.QLabel(self.frame_2)
+        font = QtGui.QFont()
+        font.setPointSize(9)
+        self.label_2.setFont(font)
+        self.label_2.setAlignment(QtCore.Qt.AlignCenter)
+        self.label_2.setObjectName("label_2")
+        self.set_audioplayer_label()
+        self.gridLayout_3.addWidget(self.label_2, 2, 0, 1, 3)
         self.horizontalLayout.addWidget(self.frame_2)
         self.frame_4 = QtWidgets.QFrame(self.frame_3)
         self.frame_4.setEnabled(True)
@@ -158,8 +165,18 @@ class data_holder(object):
         self.horizontalLayout.addWidget(self.frame_5)
         self.spacerItem = QtWidgets.QSpacerItem(30, 20, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
 
-        player.positionChanged.connect(lambda: self.changeLabel(self.progressBar))
+        self.progressBar.valueChanged.connect(self.slider_changed)
+        player.positionChanged.connect(lambda: self.changeLabel(self.label_2))
+        player.positionChanged.connect(lambda: self.changeSlider(self.progressBar))
         self.retranslateUi()
+
+    def set_audioplayer_label(self):
+        print(self.wav_url)
+        shown_duration = str(datetime.timedelta(seconds=int(LibrosaDuration(filename=self.wav_url))))[2:]
+        print(LibrosaDuration(filename=self.wav_url))
+        label_text = "00:00 / " + shown_duration
+        print(label_text)
+        self.label_2.setText(label_text)
 
     def open_editor(self):
         self.dialog.setupUi(self.text)
@@ -168,10 +185,13 @@ class data_holder(object):
         self.parent_object.setEnabled(False)
         self.dialog.show()
         self.dialog.quit.connect(self.close_editor)
+        self.dialog.quit.connect(self.pause)
         self.dialog.playButton.clicked.connect(self.play)
         self.dialog.pauseButton.clicked.connect(self.pause)
         self.dialog.stopButton.clicked.connect(self.stop)
-        player.positionChanged.connect(lambda: self.changeLabel(self.dialog.horizontalSlider))
+        self.dialog.playerLabel.setText(self.label_2.text())
+        player.positionChanged.connect(lambda: self.changeLabel(self.dialog.playerLabel))
+        player.positionChanged.connect(lambda: self.changeSlider(self.dialog.horizontalSlider))
 
     def close_editor(self):
         self.parent_object.setEnabled(True)
@@ -202,14 +222,24 @@ class data_holder(object):
         self.label.setText(_translate("MainWindow", self.file_name))
         self.lineEdit.setText(self.text)
 
-    def changeLabel(self, currentProgressBar):
+    def changeSlider(self, currentProgressBar):
         if self.dataholder_name == player.currentDataHolder:
             if player.duration() == 0:
                 progress_value = 0
             else:
                 progress_value = int((player.position() / player.duration()) * 100)
             currentProgressBar.setSliderPosition(progress_value)
-            print(progress_value)
+
+    def changeLabel(self, currentLabel):
+        if self.dataholder_name == player.currentDataHolder:
+            if player.duration() == 0:
+                progress_value = 0
+            else:
+                progress_value = int((player.position() / player.duration()) * 100)
+                shown_position = str(datetime.timedelta(seconds=int(player.position()/1000)))[2:]
+                shown_duration = str(datetime.timedelta(seconds=int(player.duration()/1000)))[2:]
+                shown_text = shown_position + " / " + shown_duration
+                currentLabel.setText(shown_text)
 
     def play(self):
         player.change_media(self.wav_url, self.dataholder_name)
@@ -230,10 +260,19 @@ class data_holder(object):
         self.audio_position = player.position()
         self.audio_duration = player.duration()
 
+    def slider_changed(self):
+        self.update_media_status()
+        v = self.progressBar.sliderPosition()
+        print(v)
+        print(self.audio_duration)
+        self.audio_position = int((v*self.audio_duration)/100)
+        print((v*self.audio_duration)/100)
+        print(self.audio_position)
+
 
 
 class Ui_MainWindow(object):
-    def setupUi(self, MainWindow):
+    def setupUi(self, MainWindow, wav_url="", txt_url=""):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1169, 790)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
@@ -250,13 +289,15 @@ class Ui_MainWindow(object):
         self.verticalLayout = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout.setObjectName("verticalLayout")
 
-        self.read_data("/home/othman/Downloads/Nos_Ketab_Final/GUI_trial/")
-        self.read_wavs("/home/othman/Downloads/Nos_Ketab_Final/GUI_trial/")
+        self.read_data(txt_url)
+        self.read_wavs(wav_url)
 
         global player
         player = audio_player()
-        content = QtMultimedia.QMediaContent(QtCore.QUrl.fromLocalFile(self.wav_paths[0]))
-        player.setMedia(content)
+        if wav_url:
+            print(self.wav_paths)
+            content = QtMultimedia.QMediaContent(QtCore.QUrl.fromLocalFile(self.wav_paths[0]))
+            player.setMedia(content)
 
         # for j in range (100):
         #     for i, text_url in enumerate(self.text_paths):
@@ -270,13 +311,15 @@ class Ui_MainWindow(object):
         #         exec("self.verticalLayout.addWidget(self." + dataholder_name + ".frame_3)")
         #         exec("self.verticalLayout.addItem(self." + dataholder_name + ".spacerItem)")
         for i, text_url in enumerate(self.text_paths):
+            # if i == 6:
+            #     break
             file = open(text_url, "r")
             text = file.read()
             # print(text)
             wav_url = self.wav_paths[i]
             url_split = wav_url.split("/")
             dataholder_name = "dataholder" + str(i)
-            exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, wav_url, text_url, dataholder_name, url_split[-1])")
+            exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, wav_url, txt_url, dataholder_name, url_split[-1])")
             exec("self.verticalLayout.addWidget(self." + dataholder_name + ".frame_3)")
             exec("self.verticalLayout.addItem(self." + dataholder_name + ".spacerItem)")
 
@@ -309,7 +352,7 @@ class Ui_MainWindow(object):
         self.menubar.addAction(self.menuFile.menuAction())
         self.menubar.addAction(self.menuPlay.menuAction())
 
-
+        self.actionOpen.triggered.connect(self.file_open)
         self.retranslateUi(MainWindow)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
@@ -324,12 +367,17 @@ class Ui_MainWindow(object):
         self.actionPlay_All.setText(_translate("MainWindow", "Play All"))
 
     def read_data(self, path):
-        text_paths = path + "*.txt"
+        text_paths = path + "/*.txt"
         self.text_paths = sorted(glob.glob(text_paths))
 
     def read_wavs(self, path):
-        wav_paths = path + "*.wav"
+        wav_paths = path + "/*.wav"
         self.wav_paths = sorted(glob.glob(wav_paths))
+
+    def file_open(self):
+        file = str(QtWidgets.QFileDialog.getExistingDirectory(MainWindow, "Select Directory"))
+        print(file)
+        self.setupUi(MainWindow, file, file)
 
 
 if __name__ == "__main__":

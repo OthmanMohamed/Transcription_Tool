@@ -104,6 +104,13 @@ class editor_window(QtWidgets.QMainWindow):
         self.stopButton.setIcon(QIcon('stop.png'))
         self.stopButton.setObjectName("stopButton")
         self.gridLayout_2.addWidget(self.stopButton, 1, 2, 1, 1)
+        self.playerLabel = QtWidgets.QLabel(self.playerFrame)
+        font = QtGui.QFont()
+        font.setPointSize(9)
+        self.playerLabel.setFont(font)
+        self.playerLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.playerLabel.setObjectName("playerLabel")
+        self.gridLayout_2.addWidget(self.playerLabel, 2, 0, 1, 3)
         self.horizontalLayout.addWidget(self.playerFrame)
         self.cancelFrame = QtWidgets.QFrame(self.bottomFrame)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Preferred)
@@ -147,16 +154,18 @@ class editor_window(QtWidgets.QMainWindow):
         self.plainTextEdit.setPlainText(text)
 
     def closeEvent(self, event):
-        close = QMessageBox()
-        close.setText("You sure?")
-        close.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
-        close = close.exec()
-
-        if close == QMessageBox.Yes:
-            self.quit.emit()
-            event.accept()
-        else:
-            event.ignore()
+        self.quit.emit()
+        event.accept()
+    #     close = QMessageBox()
+    #     close.setText("You sure?")
+    #     close.setStandardButtons(QMessageBox.Yes | QMessageBox.Cancel)
+    #     close = close.exec()
+    #
+    #     if close == QMessageBox.Yes:
+    #         self.quit.emit()
+    #         event.accept()
+    #     else:
+    #         event.ignore()
 
 
 if __name__ == "__main__":
