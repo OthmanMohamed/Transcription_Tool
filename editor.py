@@ -16,11 +16,13 @@ from PyQt5.QtCore import pyqtSignal
 
 class editor_window(QtWidgets.QMainWindow):
     quit = pyqtSignal()
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, file_name = ""):
         super(editor_window, self).__init__(parent)
+        self.file_name = file_name
         self.saveButton = QtWidgets.QPushButton(None)
 
-    def setupUi(self, text):
+    def setupUi(self, text, file_name):
+        self.file_name = file_name
         self.setObjectName("MainWindow")
         self.resize(685, 398)
         self.centralwidget = QtWidgets.QWidget(self)
@@ -145,7 +147,11 @@ class editor_window(QtWidgets.QMainWindow):
 
     def retranslateUi(self, text):
         _translate = QtCore.QCoreApplication.translate
-        self.setWindowTitle(_translate("MainWindow", "MainWindow"))
+        print(self.parent)
+        if self.file_name:
+            self.setWindowTitle(_translate("MainWindow", self.file_name))
+        else:
+            self.setWindowTitle(_translate("MainWindow", "MainWindow"))
         self.saveButton.setText(_translate("MainWindow", "Save"))
         self.playButton.setText(_translate("MainWindow", ""))
         self.pauseButton.setText(_translate("MainWindow", ""))

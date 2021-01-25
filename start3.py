@@ -15,6 +15,7 @@ import glob
 from editor import editor_window
 import datetime
 from librosa import get_duration as LibrosaDuration
+from librosa import load as LibrosaLoad
 
 
 class audio_player(QtMultimedia.QMediaPlayer):
@@ -23,6 +24,10 @@ class audio_player(QtMultimedia.QMediaPlayer):
         self.currentDataHolder = ""
 
     def change_media(self, url, dataholder_name):
+        # if self.currentDataHolder:
+        #     print("self.position()" + str(self.position()))
+        #     print("ui." + self.currentDataHolder + ".audio_position = self.position()")
+        #     exec("ui." + self.currentDataHolder + ".audio_position = self.position()")
         self.currentDataHolder = dataholder_name
         self.url = url
         self.content = QtMultimedia.QMediaContent(QtCore.QUrl.fromLocalFile(self.url))
@@ -37,7 +42,8 @@ class data_holder(object):
         self.dataholder_name = dataholder_name
         self.file_name = file_name
         self.audio_position = 0
-        self.audio_duration = 0
+        self.audio_duration = LibrosaDuration(filename=self.wav_url) * 1000
+        print(self.audio_duration)
 
         self.frame_3 = QtWidgets.QFrame(self.parent_object)
         self.frame_3.setEnabled(True)
@@ -168,18 +174,19 @@ class data_holder(object):
         self.progressBar.valueChanged.connect(self.slider_changed)
         player.positionChanged.connect(lambda: self.changeLabel(self.label_2))
         player.positionChanged.connect(lambda: self.changeSlider(self.progressBar))
+        player.positionChanged.connect(self.change_current_audio_position)
         self.retranslateUi()
+        self.lineEdit.textChanged.connect(self.text_edited)
 
     def set_audioplayer_label(self):
         print(self.wav_url)
-        shown_duration = str(datetime.timedelta(seconds=int(LibrosaDuration(filename=self.wav_url))))[2:]
-        print(LibrosaDuration(filename=self.wav_url))
+        shown_duration = str(datetime.timedelta(seconds=int(round(self.audio_duration / 1000))))[2:]
         label_text = "00:00 / " + shown_duration
         print(label_text)
         self.label_2.setText(label_text)
 
     def open_editor(self):
-        self.dialog.setupUi(self.text)
+        self.dialog.setupUi(self.lineEdit.text().replace("\n", " "), self.file_name)
         self.dialog.saveButton.clicked.connect(lambda: self.save_text("dialog"))
         player.change_media(self.wav_url, self.dataholder_name)
         self.parent_object.setEnabled(False)
@@ -192,6 +199,7 @@ class data_holder(object):
         self.dialog.playerLabel.setText(self.label_2.text())
         player.positionChanged.connect(lambda: self.changeLabel(self.dialog.playerLabel))
         player.positionChanged.connect(lambda: self.changeSlider(self.dialog.horizontalSlider))
+        player.positionChanged.connect(self.change_current_audio_position)
 
     def close_editor(self):
         self.parent_object.setEnabled(True)
@@ -211,8 +219,11 @@ class data_holder(object):
         elif src == "dialog":
             text = self.dialog.plainTextEdit.toPlainText()
             self.lineEdit.setText(text)
+        text = text.replace("\n", " ")
         file.write(text)
         file.close()
+        self.text = self.lineEdit.text()
+        self.label.setText(self.file_name)
 
     def retranslateUi(self):
         _translate = QtCore.QCoreApplication.translate
@@ -224,73 +235,98 @@ class data_holder(object):
 
     def changeSlider(self, currentProgressBar):
         if self.dataholder_name == player.currentDataHolder:
-            if player.duration() == 0:
+            if self.audio_duration == 0:
                 progress_value = 0
             else:
-                progress_value = int((player.position() / player.duration()) * 100)
+                # print("slider audio position : ", self.audio_position)
+                # print("slider audio duration : ", self.audio_duration)
+                progress_value = int(round((self.audio_position / self.audio_duration) * 100))
             currentProgressBar.setSliderPosition(progress_value)
 
     def changeLabel(self, currentLabel):
         if self.dataholder_name == player.currentDataHolder:
-            if player.duration() == 0:
+            if self.audio_duration == 0:
                 progress_value = 0
             else:
-                progress_value = int((player.position() / player.duration()) * 100)
-                shown_position = str(datetime.timedelta(seconds=int(player.position()/1000)))[2:]
-                shown_duration = str(datetime.timedelta(seconds=int(player.duration()/1000)))[2:]
+                progress_value = int(round((self.audio_position / self.audio_duration) * 100))
+                shown_position = str(datetime.timedelta(seconds=int(round(self.audio_position/1000))))[2:]
+                shown_duration = str(datetime.timedelta(seconds=int(round(self.audio_duration/1000))))[2:]
                 shown_text = shown_position + " / " + shown_duration
                 currentLabel.setText(shown_text)
 
+    def change_current_audio_position(self):
+        if self.dataholder_name == player.currentDataHolder and not player.position() == 0:
+            self.audio_position = player.position()
+            print("audio position inside change_current_audio_position : ", self.audio_position, self.dataholder_name)
+
     def play(self):
+        print("initial audio position : ", self.audio_position)
         player.change_media(self.wav_url, self.dataholder_name)
-        player.setPosition(self.audio_position)
+        print("audio position after change media : ", self.audio_position)
+        if self.audio_position < self.audio_duration:
+            print("set")
+            player.setPosition(self.audio_position)
         player.play()
-        self.update_media_status()
+        # self.update_media_status()
 
     def pause(self):
-        player.pause()
-        self.update_media_status()
+        if(player.currentDataHolder == self.dataholder_name):
+            player.pause()
+            self.update_media_status()
 
     def stop(self):
-        player.stop()
-        self.update_media_status()
-        self.audio_position = 0
+        if(player.currentDataHolder == self.dataholder_name):
+            player.stop()
+            self.update_media_status()
 
     def update_media_status(self):
         self.audio_position = player.position()
-        self.audio_duration = player.duration()
+        print("position inside update media status : ", self.audio_position)
 
     def slider_changed(self):
-        self.update_media_status()
-        v = self.progressBar.sliderPosition()
-        print(v)
-        print(self.audio_duration)
-        self.audio_position = int((v*self.audio_duration)/100)
-        print((v*self.audio_duration)/100)
-        print(self.audio_position)
+        v = self.progressBar.sliderPosition() / 100
+        print("slider position : ", v)
+        self.audio_position = int(round((v*self.audio_duration)))
+        self.changeLabel(self.label_2)
+        # print("new audio position : ", (v*self.audio_duration))
+        shown_position = str(datetime.timedelta(seconds=int(round(self.audio_position / 1000))))[2:]
+        shown_duration = str(datetime.timedelta(seconds=int(round(self.audio_duration / 1000))))[2:]
+        shown_text = shown_position + " / " + shown_duration
+        self.label_2.setText(shown_text)
+
+    def text_edited(self):
+        if not self.lineEdit.text() == self.text:
+            self.label.setText("*" + self.file_name)
+        else:
+            self.label.setText(self.file_name)
+
 
 
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow, wav_url="", txt_url=""):
+        self.currentPage = 0
+        self.maxInPage = 5
+
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(1169, 790)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.gridLayout = QtWidgets.QGridLayout(self.centralwidget)
         self.gridLayout.setObjectName("gridLayout")
-        self.scrollArea = QtWidgets.QScrollArea(self.centralwidget)
-        self.scrollArea.setEnabled(True)
-        self.scrollArea.setWidgetResizable(True)
-        self.scrollArea.setObjectName("scrollArea")
-        self.scrollAreaWidgetContents = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 1149, 726))
-        self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
-        self.verticalLayout = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents)
-        self.verticalLayout.setObjectName("verticalLayout")
+        # self.scrollArea = QtWidgets.QScrollArea(self.centralwidget)
+        # self.scrollArea.setEnabled(True)
+        # self.scrollArea.setWidgetResizable(True)
+        # self.scrollArea.setObjectName("scrollArea")
+        # self.scrollAreaWidgetContents = QtWidgets.QWidget()
+        # self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 1149, 726))
+        # self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
+        # self.verticalLayout = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents)
+        # self.verticalLayout.setObjectName("verticalLayout")
 
         self.read_data(txt_url)
         self.read_wavs(wav_url)
+        self.pagesNo = int( len(self.text_paths) / self.maxInPage )
 
         global player
         player = audio_player()
@@ -299,6 +335,7 @@ class Ui_MainWindow(object):
             content = QtMultimedia.QMediaContent(QtCore.QUrl.fromLocalFile(self.wav_paths[0]))
             player.setMedia(content)
 
+        self.load_page()
         # for j in range (100):
         #     for i, text_url in enumerate(self.text_paths):
         #         file = open(text_url, "r")
@@ -310,22 +347,61 @@ class Ui_MainWindow(object):
         #         exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, wav_url, text_url, dataholder_name, url_split[-1])")
         #         exec("self.verticalLayout.addWidget(self." + dataholder_name + ".frame_3)")
         #         exec("self.verticalLayout.addItem(self." + dataholder_name + ".spacerItem)")
-        for i, text_url in enumerate(self.text_paths):
-            # if i == 6:
-            #     break
-            file = open(text_url, "r")
-            text = file.read()
-            # print(text)
-            wav_url = self.wav_paths[i]
-            url_split = wav_url.split("/")
-            dataholder_name = "dataholder" + str(i)
-            exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, wav_url, txt_url, dataholder_name, url_split[-1])")
-            exec("self.verticalLayout.addWidget(self." + dataholder_name + ".frame_3)")
-            exec("self.verticalLayout.addItem(self." + dataholder_name + ".spacerItem)")
+        # for i in range(self.currentPage*self.maxInPage, (self.currentPage + 1) * self.maxInPage):
+        #     if i >= len(self.text_paths):
+        #         break
+        #     text_url = self.text_paths[i]
+        #     print(text_url)
+        #     # if i == 6:
+        #     #     break
+        #     file = open(text_url, "r")
+        #     text = file.read()
+        #     # print(text)
+        #     wav_url = self.wav_paths[i]
+        #     url_split = wav_url.split("/")
+        #     dataholder_name = "dataholder" + str(i)
+        #     exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, wav_url, text_url, dataholder_name, url_split[-1])")
+        #     exec("self.verticalLayout.addWidget(self." + dataholder_name + ".frame_3)")
+        #     exec("self.verticalLayout.addItem(self." + dataholder_name + ".spacerItem)")
+        #
+        # self.pagingFrame = QtWidgets.QFrame(self.scrollAreaWidgetContents)
+        # sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        # sizePolicy.setHorizontalStretch(0)
+        # sizePolicy.setVerticalStretch(0)
+        # sizePolicy.setHeightForWidth(self.pagingFrame.sizePolicy().hasHeightForWidth())
+        # self.pagingFrame.setSizePolicy(sizePolicy)
+        # self.pagingFrame.setMinimumSize(QtCore.QSize(900, 50))
+        # self.pagingFrame.setFrameShape(QtWidgets.QFrame.NoFrame)
+        # self.pagingFrame.setFrameShadow(QtWidgets.QFrame.Raised)
+        # self.pagingFrame.setObjectName("pagingFrame")
+        # self.horizontalLayout_3 = QtWidgets.QHBoxLayout(self.pagingFrame)
+        # self.horizontalLayout_3.setObjectName("horizontalLayout_3")
+        # self.firstPageButton = QtWidgets.QPushButton(self.pagingFrame)
+        # self.firstPageButton.setObjectName("firstPageButton")
+        # self.horizontalLayout_3.addWidget(self.firstPageButton)
+        # self.prevPageButton = QtWidgets.QPushButton(self.pagingFrame)
+        # self.prevPageButton.setAutoFillBackground(False)
+        # self.prevPageButton.setObjectName("prevPageButton")
+        # self.horizontalLayout_3.addWidget(self.prevPageButton)
+        # self.PagingLabel = QtWidgets.QLabel(self.pagingFrame)
+        # font = QtGui.QFont()
+        # font.setBold(True)
+        # font.setWeight(75)
+        # self.PagingLabel.setFont(font)
+        # self.PagingLabel.setAlignment(QtCore.Qt.AlignCenter)
+        # self.PagingLabel.setObjectName("PagingLabel")
+        # self.horizontalLayout_3.addWidget(self.PagingLabel)
+        # self.nextPageButton = QtWidgets.QPushButton(self.pagingFrame)
+        # self.nextPageButton.setObjectName("nextPageButton")
+        # self.horizontalLayout_3.addWidget(self.nextPageButton)
+        # self.lastPageButton = QtWidgets.QPushButton(self.pagingFrame)
+        # self.lastPageButton.setObjectName("lastPageButton")
+        # self.horizontalLayout_3.addWidget(self.lastPageButton)
+        # self.verticalLayout.addWidget(self.pagingFrame)
 
-        self.scrollArea.setWidget(self.scrollAreaWidgetContents)
-        self.gridLayout.addWidget(self.scrollArea, 0, 0, 1, 1)
-        MainWindow.setCentralWidget(self.centralwidget)
+        # self.scrollArea.setWidget(self.scrollAreaWidgetContents)
+        # self.gridLayout.addWidget(self.scrollArea, 0, 0, 1, 1)
+        # MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1169, 22))
         self.menubar.setObjectName("menubar")
@@ -366,6 +442,16 @@ class Ui_MainWindow(object):
         self.actionPlay_Selected.setText(_translate("MainWindow", "Play Selected"))
         self.actionPlay_All.setText(_translate("MainWindow", "Play All"))
 
+    def retranslatePagingFrame(self):
+        _translate = QtCore.QCoreApplication.translate
+        self.firstPageButton.setText(_translate("MainWindow", "First"))
+        self.prevPageButton.setText(_translate("MainWindow", "Previous"))
+        self.nextPageButton.setText(_translate("MainWindow", "Next"))
+        self.lastPageButton.setText(_translate("MainWindow", "Last"))
+
+        pagingLabel_text = "Page " + str(self.currentPage + 1) + " of " + str(self.pagesNo + 1)
+        self.PagingLabel.setText(_translate("MainWindow", pagingLabel_text))
+
     def read_data(self, path):
         text_paths = path + "/*.txt"
         self.text_paths = sorted(glob.glob(text_paths))
@@ -378,6 +464,136 @@ class Ui_MainWindow(object):
         file = str(QtWidgets.QFileDialog.getExistingDirectory(MainWindow, "Select Directory"))
         print(file)
         self.setupUi(MainWindow, file, file)
+
+    def next_page(self):
+        if self.currentPage < self.pagesNo:
+            self.currentPage += 1
+            player.pause()
+            self.load_page()
+
+    def prev_page(self):
+        if self.currentPage >= 1:
+            self.currentPage -= 1
+            player.pause()
+            self.load_page()
+
+    def first_page(self):
+        if not self.currentPage == 0:
+            self.currentPage = 0
+            player.pause()
+            self.load_page()
+
+    def last_page(self):
+        if not self.currentPage == self.pagesNo:
+            self.currentPage = self.pagesNo
+            player.pause()
+            self.load_page()
+
+    def load_page(self):
+        self.scrollArea = QtWidgets.QScrollArea(self.centralwidget)
+        self.scrollArea.setEnabled(True)
+        self.scrollArea.setWidgetResizable(True)
+        self.scrollArea.setObjectName("scrollArea")
+        self.scrollAreaWidgetContents = QtWidgets.QWidget()
+        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 1149, 726))
+        self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
+        self.verticalLayout = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents)
+        self.verticalLayout.setObjectName("verticalLayout")
+        for i in range(self.currentPage*self.maxInPage, (self.currentPage + 1) * self.maxInPage):
+            print(i)
+            if i >= len(self.text_paths) or i < 0:
+                break
+            text_url = self.text_paths[i]
+            print(text_url)
+            # if i == 6:
+            #     break
+            file = open(text_url, "r")
+            text = file.read()
+            # print(text)
+            wav_url = self.wav_paths[i]
+            url_split = wav_url.split("/")
+            dataholder_name = "dataholder" + str(i)
+            exec("self." + dataholder_name + "= data_holder(self.centralwidget, text, wav_url, text_url, dataholder_name, url_split[-1])")
+            exec("self.verticalLayout.addWidget(self." + dataholder_name + ".frame_3)")
+            exec("self.verticalLayout.addItem(self." + dataholder_name + ".spacerItem)")
+
+        self.pagingFrame = QtWidgets.QFrame(self.scrollAreaWidgetContents)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.pagingFrame.sizePolicy().hasHeightForWidth())
+        self.pagingFrame.setSizePolicy(sizePolicy)
+        self.pagingFrame.setMinimumSize(QtCore.QSize(900, 50))
+        self.pagingFrame.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.pagingFrame.setFrameShadow(QtWidgets.QFrame.Raised)
+        self.pagingFrame.setObjectName("pagingFrame")
+        self.horizontalLayout_3 = QtWidgets.QHBoxLayout(self.pagingFrame)
+        self.horizontalLayout_3.setObjectName("horizontalLayout_3")
+        self.firstPageButton = QtWidgets.QPushButton(self.pagingFrame)
+        self.firstPageButton.setObjectName("firstPageButton")
+        self.horizontalLayout_3.addWidget(self.firstPageButton)
+        self.prevPageButton = QtWidgets.QPushButton(self.pagingFrame)
+        self.prevPageButton.setAutoFillBackground(False)
+        self.prevPageButton.setObjectName("prevPageButton")
+        self.horizontalLayout_3.addWidget(self.prevPageButton)
+        self.frame_6 = QtWidgets.QFrame(self.pagingFrame)
+        self.frame_6.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.frame_6.setFrameShadow(QtWidgets.QFrame.Raised)
+        self.frame_6.setObjectName("frame_6")
+        self.gridLayout_3 = QtWidgets.QGridLayout(self.frame_6)
+        self.gridLayout_3.setObjectName("gridLayout_3")
+        self.PagingLabel = QtWidgets.QLabel(self.frame_6)
+        font = QtGui.QFont()
+        font.setBold(True)
+        font.setWeight(75)
+        font.setStyleStrategy(QtGui.QFont.PreferAntialias)
+        self.PagingLabel.setFont(font)
+        self.PagingLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.PagingLabel.setObjectName("PagingLabel")
+        self.gridLayout_3.addWidget(self.PagingLabel, 1, 0, 1, 1)
+        self.pagingComboBox = QtWidgets.QComboBox(self.frame_6)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.pagingComboBox.sizePolicy().hasHeightForWidth())
+        self.pagingComboBox.setSizePolicy(sizePolicy)
+        self.pagingComboBox.setMinimumSize(QtCore.QSize(50, 0))
+        self.pagingComboBox.setMaximumSize(QtCore.QSize(50, 200))
+        self.pagingComboBox.setContextMenuPolicy(QtCore.Qt.DefaultContextMenu)
+        self.pagingComboBox.setInputMethodHints(QtCore.Qt.ImhFormattedNumbersOnly)
+        self.pagingComboBox.setObjectName("pagingComboBox")
+        self.set_comboBox()
+        self.gridLayout_3.addWidget(self.pagingComboBox, 2, 0, 1, 1)
+        spacerItem3 = QtWidgets.QSpacerItem(20, 21, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        self.gridLayout_3.addItem(spacerItem3, 0, 0, 1, 1)
+        self.horizontalLayout_3.addWidget(self.frame_6)
+        self.nextPageButton = QtWidgets.QPushButton(self.pagingFrame)
+        self.nextPageButton.setObjectName("nextPageButton")
+        self.horizontalLayout_3.addWidget(self.nextPageButton)
+        self.lastPageButton = QtWidgets.QPushButton(self.pagingFrame)
+        self.lastPageButton.setObjectName("lastPageButton")
+        self.horizontalLayout_3.addWidget(self.lastPageButton)
+        self.verticalLayout.addWidget(self.pagingFrame)
+
+        self.nextPageButton.clicked.connect(self.next_page)
+        self.prevPageButton.clicked.connect(self.prev_page)
+        self.lastPageButton.clicked.connect(self.last_page)
+        self.firstPageButton.clicked.connect(self.first_page)
+        self.pagingComboBox.currentIndexChanged.connect(self.set_page_from_comboBox)
+
+        self.scrollArea.setWidget(self.scrollAreaWidgetContents)
+        self.gridLayout.addWidget(self.scrollArea, 0, 0, 1, 1)
+        MainWindow.setCentralWidget(self.centralwidget)
+        self.retranslatePagingFrame()
+
+    def set_page_from_comboBox(self):
+        self.currentPage = int(self.pagingComboBox.currentText()) - 1
+        self.load_page()
+
+    def set_comboBox(self):
+        for i in range(self.pagesNo + 1):
+            self.pagingComboBox.addItem("")
+            self.pagingComboBox.setItemText(i, str(i+1))
 
 
 if __name__ == "__main__":
