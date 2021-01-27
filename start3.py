@@ -264,6 +264,8 @@ class data_holder(object):
         player.change_media(self.wav_url, self.dataholder_name)
         print("audio position after change media : ", self.audio_position)
         if self.audio_position < self.audio_duration:
+            if self.audio_duration - self.audio_position < 100:
+                self.audio_position = 0
             print("set")
             player.setPosition(self.audio_position)
         player.play()
@@ -278,6 +280,7 @@ class data_holder(object):
         if(player.currentDataHolder == self.dataholder_name):
             player.stop()
             self.update_media_status()
+            self.progressBar.setSliderPosition(0)
 
     def update_media_status(self):
         self.audio_position = player.position()
@@ -589,6 +592,10 @@ class Ui_MainWindow(object):
     def set_page_from_comboBox(self):
         self.currentPage = int(self.pagingComboBox.currentText()) - 1
         self.load_page()
+        self.pagingComboBox.currentIndexChanged.disconnect()
+        self.pagingComboBox.setCurrentText(str(self.currentPage + 1))
+
+        self.pagingComboBox.currentIndexChanged.connect(self.set_page_from_comboBox)
 
     def set_comboBox(self):
         for i in range(self.pagesNo + 1):
